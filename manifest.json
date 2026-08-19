@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Scratch JS Editor",
   "version": "0.2.0",
-  "description": "Adds a Monaco-powered JavaScript editor overlay to Scratch when browsing Scratch in Firefox.",
+  "description": "Shows a live, read-only JavaScript view generated from the blocks in a Scratch project, alongside the normal block editor.",
   "permissions": ["storage"],
   "content_scripts": [
     {
@@ -16,11 +16,5 @@
       "resources": ["dist/*.js", "dist/*.ttf"],
       "matches": ["*://scratch.mit.edu/projects/*/editor/*"]
     }
-  ],
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "scratch-js-editor@example.com",
-      "strict_min_version": "109.0"
-    }
-  }
+  ]
 }

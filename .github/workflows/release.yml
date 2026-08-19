@@ -1,11 +1,5 @@
 name: Build and Release Chrome Extension
 
-# Only does anything when RELEASE.md exists (checked as a step output after
-# checkout, since hashFiles() isn't usable in a job-level `if` — GitHub
-# rejects that at validation time because no runner/checkout exists yet to
-# hash against). That check is also what stops this from looping: the last
-# step deletes and commits RELEASE.md, that commit re-triggers this
-# workflow, but by then RELEASE.md is gone so every later step is skipped.
 on:
   push:
     branches: [main]
@@ -15,18 +9,14 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  check-release:
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.exists }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # hashFiles() in a job-level `if` runs BEFORE checkout, so it can
-      # never see RELEASE.md — that always evaluated to false, silently
-      # skipping this job every time. Checking after checkout, as a step
-      # output, is the fix; every later step gates on it.
       - name: Check for RELEASE.md
         id: check
         run: |
@@ -36,37 +26,38 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+  release:
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set up Node.js
-        if: steps.check.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install dependencies
-        if: steps.check.outputs.exists == 'true'
         run: npm install
 
       - name: Build extension (production)
-        if: steps.check.outputs.exists == 'true'
         run: npm run build:prod
 
       - name: Read package version
-        if: steps.check.outputs.exists == 'true'
         id: pkg
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # Uses manifest.chrome.json (no Firefox-only browser_specific_settings
-      # key) rather than the Firefox manifest.json, since this workflow
-      # packages a Chrome build specifically. Its "version" field is synced
-      # to package.json's here so the two never drift apart.
       - name: Assemble Chrome extension package
-        if: steps.check.outputs.exists == 'true'
         run: |
           rm -rf release-package
           mkdir -p release-package
           node -e "
             const fs = require('fs');
-            const m = JSON.parse(fs.readFileSync('manifest.chrome.json', 'utf8'));
+            const m = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
             m.version = require('./package.json').version;
             fs.writeFileSync('release-package/manifest.json', JSON.stringify(m, null, 2) + '\n');
           "
@@ -74,27 +65,13 @@ jobs:
           cd release-package
           zip -r "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" .
 
-      # See scripts/pack-crx.js for how to generate CRX_PRIVATE_KEY. This
-      # step and the release step below both need it, so it's written once
-      # to a gitignored temp file rather than passed inline repeatedly.
-      - name: Write CRX signing key
-        if: steps.check.outputs.exists == 'true'
-        run: echo "${{ secrets.CRX_PRIVATE_KEY }}" > key.pem
-        env:
-          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
-
-      # This matches perfectly with your workflow setup
       - name: Pack .crx
-        if: steps.check.outputs.exists == 'true'
-        run: node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
-
-
-      - name: Remove signing key from disk
-        if: steps.check.outputs.exists == 'true'
-        run: rm -f key.pem
+        run: |
+          echo "${{ secrets.CRX_PRIVATE_KEY }}" > key.pem
+          node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
+          rm -f key.pem
 
       - name: Create GitHub Release
-        if: steps.check.outputs.exists == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.pkg.outputs.version }}
@@ -105,10 +82,9 @@ jobs:
             scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx
 
       - name: Clear RELEASE.md now that it's published
-        if: steps.check.outputs.exists == 'true'
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@://github.com"
           git rm RELEASE.md
           git commit -m "chore: clear RELEASE.md after publishing v${{ steps.pkg.outputs.version }}"
           git push origin HEAD:${{ github.ref_name }}
