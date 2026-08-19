@@ -22,7 +22,10 @@ if (!keyPath || !outputPath) {
 }
 
 const crx = new ChromeExtension({
-  privateKey: fs.readFileSync(path.resolve(keyPath))
+  // Read as a utf8 string, not a raw Buffer — node-rsa (used internally by
+  // `crx`) auto-detects a PEM's format from a string but throws "Key
+  // format must be specified" when given a Buffer instead.
+  privateKey: fs.readFileSync(path.resolve(keyPath), 'utf8')
 });
 
 crx
