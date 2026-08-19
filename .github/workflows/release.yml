@@ -62,8 +62,11 @@ jobs:
             fs.writeFileSync('release-package/manifest.json', JSON.stringify(m, null, 2) + '\n');
           "
           cp -r dist release-package/dist
+          test -f release-package/manifest.json
           cd release-package
           zip -r "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" .
+          unzip -t "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip"
+          unzip -l "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" | grep -q '^.*manifest.json$'
 
       - name: Pack .crx
         run: |
