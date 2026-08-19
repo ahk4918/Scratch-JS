@@ -1,9 +1,11 @@
 name: Build and Release Chrome Extension
 
-# Only does anything when RELEASE.md exists (see the job-level `if` below).
-# That's also what stops this from looping: the last step deletes and
-# commits RELEASE.md, that commit re-triggers this workflow, but by then
-# RELEASE.md is gone so the job is skipped instead of re-running.
+# Only does anything when RELEASE.md exists (checked as a step output after
+# checkout, since hashFiles() isn't usable in a job-level `if` — GitHub
+# rejects that at validation time because no runner/checkout exists yet to
+# hash against). That check is also what stops this from looping: the last
+# step deletes and commits RELEASE.md, that commit re-triggers this
+# workflow, but by then RELEASE.md is gone so every later step is skipped.
 on:
   push:
     branches: [main]
@@ -72,6 +74,23 @@ jobs:
           cd release-package
           zip -r "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" .
 
+      # See scripts/pack-crx.js for how to generate CRX_PRIVATE_KEY. This
+      # step and the release step below both need it, so it's written once
+      # to a gitignored temp file rather than passed inline repeatedly.
+      - name: Write CRX signing key
+        if: steps.check.outputs.exists == 'true'
+        run: echo "${{ secrets.CRX_PRIVATE_KEY }}" > key.pem
+        env:
+          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
+
+      - name: Pack .crx
+        if: steps.check.outputs.exists == 'true'
+        run: node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
+
+      - name: Remove signing key from disk
+        if: steps.check.outputs.exists == 'true'
+        run: rm -f key.pem
+
       - name: Create GitHub Release
         if: steps.check.outputs.exists == 'true'
         uses: softprops/action-gh-release@v2
@@ -79,7 +98,9 @@ jobs:
           tag_name: v${{ steps.pkg.outputs.version }}
           name: v${{ steps.pkg.outputs.version }}
           body_path: RELEASE.md
-          files: scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip
+          files: |
+            scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip
+            scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx
 
       - name: Clear RELEASE.md now that it's published
         if: steps.check.outputs.exists == 'true'
