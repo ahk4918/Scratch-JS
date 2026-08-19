@@ -83,9 +83,11 @@ jobs:
         env:
           CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
 
+      # This matches perfectly with your workflow setup
       - name: Pack .crx
         if: steps.check.outputs.exists == 'true'
         run: node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
+
 
       - name: Remove signing key from disk
         if: steps.check.outputs.exists == 'true'
