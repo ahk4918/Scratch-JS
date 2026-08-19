@@ -44,7 +44,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.exists == 'true'
-        run: npm install && npm audit fix --force
+        run: npm install
 
       - name: Build extension (production)
         if: steps.check.outputs.exists == 'true'
@@ -85,7 +85,7 @@ jobs:
 
       - name: Pack .crx
         if: steps.check.outputs.exists == 'true'
-        run: node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
+        run: node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
 
       - name: Remove signing key from disk
         if: steps.check.outputs.exists == 'true'

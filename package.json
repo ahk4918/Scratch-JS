@@ -9,7 +9,6 @@
     "watch": "webpack --mode development --watch"
   },
   "devDependencies": {
-    "crx": "^5.0.1",
     "css-loader": "^7.1.2",
     "monaco-editor": "^0.50.0",
     "monaco-editor-webpack-plugin": "^7.1.0",
