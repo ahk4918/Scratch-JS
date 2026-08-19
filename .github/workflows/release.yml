@@ -62,6 +62,15 @@ jobs:
           unzip -t "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip"
           unzip -l "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" | grep -q '^.*manifest.json$'
 
+      - name: Pack CRX3
+        run: |
+          printf '%s\n' "${{ secrets.CRX_PRIVATE_KEY }}" > key.pem
+          node scripts/pack-crx.js key.pem \
+            "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" \
+            "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
+          rm -f key.pem
+          test "$(dd if="scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx" bs=1 count=4 2>/dev/null)" = "Cr24"
+
       - name: Create GitHub Release
         if: steps.release-notes.outputs.exists == 'true'
         uses: softprops/action-gh-release@v2
@@ -71,6 +80,7 @@ jobs:
           body_path: RELEASE.md
           files: |
             scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip
+            scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx
 
       - name: Clear RELEASE.md now that it's published
         if: steps.release-notes.outputs.exists == 'true'

@@ -1,6 +1,6 @@
 {
   "name": "scratch-js-editor",
-  "version": "0.2.0",
+  "version": "0.2.5",
   "description": "Firefox WebExtension that adds a Monaco-powered JavaScript editor overlay to Scratch.",
   "private": true,
   "scripts": {
