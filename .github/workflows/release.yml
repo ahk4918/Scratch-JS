@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   release:
-    if: hashFiles('RELEASE.md') != ''
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -22,18 +21,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      # hashFiles() in a job-level `if` runs BEFORE checkout, so it can
+      # never see RELEASE.md — that always evaluated to false, silently
+      # skipping this job every time. Checking after checkout, as a step
+      # output, is the fix; every later step gates on it.
+      - name: Check for RELEASE.md
+        id: check
+        run: |
+          if [ -f RELEASE.md ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Node.js
+        if: steps.check.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install dependencies
+        if: steps.check.outputs.exists == 'true'
         run: npm install
 
       - name: Build extension (production)
+        if: steps.check.outputs.exists == 'true'
         run: npm run build:prod
 
       - name: Read package version
+        if: steps.check.outputs.exists == 'true'
         id: pkg
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
@@ -42,6 +58,7 @@ jobs:
       # packages a Chrome build specifically. Its "version" field is synced
       # to package.json's here so the two never drift apart.
       - name: Assemble Chrome extension package
+        if: steps.check.outputs.exists == 'true'
         run: |
           rm -rf release-package
           mkdir -p release-package
@@ -56,6 +73,7 @@ jobs:
           zip -r "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" .
 
       - name: Create GitHub Release
+        if: steps.check.outputs.exists == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.pkg.outputs.version }}
@@ -64,6 +82,7 @@ jobs:
           files: scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip
 
       - name: Clear RELEASE.md now that it's published
+        if: steps.check.outputs.exists == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
