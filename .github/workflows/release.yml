@@ -87,7 +87,7 @@ jobs:
       - name: Clear RELEASE.md now that it's published
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@://github.com"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git rm RELEASE.md
           git commit -m "chore: clear RELEASE.md after publishing v${{ steps.pkg.outputs.version }}"
           git push origin HEAD:${{ github.ref_name }}
