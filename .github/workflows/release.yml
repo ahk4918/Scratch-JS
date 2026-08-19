@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   check-release:
     runs-on: ubuntu-latest
@@ -88,6 +92,21 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin "${{ github.ref_name }}"
+          git rebase "origin/${{ github.ref_name }}"
+          if [ ! -f RELEASE.md ]; then
+            echo "RELEASE.md was already cleared by another release run."
+            exit 0
+          fi
           git rm RELEASE.md
           git commit -m "chore: clear RELEASE.md after publishing v${{ steps.pkg.outputs.version }}"
-          git push origin HEAD:${{ github.ref_name }}
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${{ github.ref_name }}"; then
+              exit 0
+            fi
+            echo "Push raced with another commit; rebasing and retrying (attempt $((attempt + 1))/3)."
+            git fetch origin "${{ github.ref_name }}"
+            git rebase "origin/${{ github.ref_name }}"
+          done
+          echo "Unable to push the RELEASE.md cleanup after 3 attempts."
+          exit 1
