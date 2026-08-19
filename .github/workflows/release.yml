@@ -13,26 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check-release:
-    runs-on: ubuntu-latest
-    outputs:
-      should_release: ${{ steps.check.outputs.exists }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Check for RELEASE.md
-        id: check
-        run: |
-          if [ -f RELEASE.md ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
   release:
-    needs: check-release
-    if: needs.check-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -55,6 +36,15 @@ jobs:
         id: pkg
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Check for release notes
+        id: release-notes
+        run: |
+          if [ -f RELEASE.md ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Assemble Chrome extension package
         run: |
           rm -rf release-package
@@ -72,13 +62,8 @@ jobs:
           unzip -t "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip"
           unzip -l "../scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" | grep -q '^.*manifest.json$'
 
-      - name: Pack .crx
-        run: |
-          echo "${{ secrets.CRX_PRIVATE_KEY }}" > key.pem
-          node scripts/pack-crx.js key.pem "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip" "scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx"
-          rm -f key.pem
-
       - name: Create GitHub Release
+        if: steps.release-notes.outputs.exists == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.pkg.outputs.version }}
@@ -86,9 +71,9 @@ jobs:
           body_path: RELEASE.md
           files: |
             scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.zip
-            scratch-js-editor-chrome-v${{ steps.pkg.outputs.version }}.crx
 
       - name: Clear RELEASE.md now that it's published
+        if: steps.release-notes.outputs.exists == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
