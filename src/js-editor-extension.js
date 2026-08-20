@@ -3,6 +3,7 @@ console.log(`[Scratch JS Editor #${BUILD_TAG}] script starting to load`);
 
 import './public-path';
 import * as monaco from 'monaco-editor';
+import * as Blockly from 'blockly/core';
 
 const LOG_PREFIX = `[Scratch JS Editor #${BUILD_TAG}]`;
 console.log(LOG_PREFIX, 'monaco imported successfully, continuing setup');
@@ -217,26 +218,51 @@ function findGreenFlagBar() {
 function findWorkspace() {
   if (window.Blockly && typeof window.Blockly.getMainWorkspace === 'function') {
     const ws = window.Blockly.getMainWorkspace();
-    if (ws) return ws;
+    if (ws) {
+      console.log(LOG_PREFIX, 'workspace found via window.Blockly.getMainWorkspace()');
+      return ws;
+    }
+    console.log(LOG_PREFIX, 'window.Blockly.getMainWorkspace exists but returned nothing');
+  } else {
+    console.log(LOG_PREFIX, 'no global window.Blockly with getMainWorkspace — normal for production builds');
   }
+
   const svg = document.querySelector('.injectionDiv svg.blocklySvg');
-  if (svg && svg.workspace) return svg.workspace;
+  if (svg) {
+    console.log(LOG_PREFIX, '.injectionDiv svg.blocklySvg found:', svg, '— has .workspace?', !!svg.workspace);
+    if (svg.workspace) return svg.workspace;
+  } else {
+    console.log(LOG_PREFIX, 'no element matched ".injectionDiv svg.blocklySvg"');
+  }
 
   const container = document.querySelector('.injectionDiv');
-  if (!container) return null;
+  if (!container) {
+    console.log(LOG_PREFIX, 'no element matched ".injectionDiv" at all — Scratch may be using a different DOM structure now');
+    return null;
+  }
+  console.log(LOG_PREFIX, '.injectionDiv found:', container);
+
   const fiberKey = Object.keys(container).find(
     k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')
   );
-  if (!fiberKey) return null;
+  if (!fiberKey) {
+    console.log(LOG_PREFIX, '.injectionDiv has no React fiber key on it — its own keys:', Object.keys(container));
+    return null;
+  }
+  console.log(LOG_PREFIX, 'React fiber key found:', fiberKey, '— walking up looking for a .workspace property');
 
   let fiber = container[fiberKey];
   let depth = 0;
   while (fiber && depth < 40) {
     const inst = fiber.stateNode;
-    if (inst && inst.workspace) return inst.workspace;
+    if (inst && inst.workspace) {
+      console.log(LOG_PREFIX, `workspace found via fiber walk at depth ${depth}:`, inst);
+      return inst.workspace;
+    }
     fiber = fiber.return;
     depth++;
   }
+  console.log(LOG_PREFIX, `fiber walk reached depth ${depth} without finding a .workspace property anywhere`);
   return null;
 }
 
@@ -462,8 +488,27 @@ function workspaceToJs(workspace) {
   return parts.join('\n\n') || '// No blocks in this workspace yet.';
 }
 
+// Diagnostic only, for now: tries Blockly's own generic serializer against
+// Scratch's live (forked, sb3-based) workspace object. Doesn't change what
+// the panel displays — just logs what comes back, since it's unverified
+// whether Scratch's workspace fully satisfies what stock Blockly's
+// serializer expects. If this consistently returns something sane, the
+// hand-rolled walker below could eventually be replaced by generating JS
+// from this JSON instead of raw Block objects.
+function tryBlocklySerialization(workspace) {
+  try {
+    const serialized = Blockly.serialization.workspaces.save(workspace);
+    console.log(LOG_PREFIX, 'Blockly.serialization.workspaces.save() result:', serialized);
+    return serialized;
+  } catch (err) {
+    console.log(LOG_PREFIX, 'Blockly.serialization.workspaces.save() threw — Scratch\'s workspace likely doesn\'t fully match stock Blockly\'s expected shape:', err);
+    return null;
+  }
+}
+
 function refreshGeneratedJs() {
   if (!editor || !workspaceRef) return;
+  tryBlocklySerialization(workspaceRef);
   try {
     editor.setValue(workspaceToJs(workspaceRef));
   } catch (err) {
