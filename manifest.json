@@ -1,32 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Scratch JS Editor",
-  "version": "0.2.0",
+  "version": "0.2.5",
   "description": "Shows a live, read-only JavaScript view generated from the blocks in a Scratch project, alongside the normal block editor.",
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": [
-        "*://scratch.mit.edu/projects/*/editor/*",
-        "*://scratch.mit.edu/projects/editor/"
-      ],
-      "js": [
-        "dist/js-editor-extension.js"
-      ],
+      "matches": ["*://scratch.mit.edu/projects/*/editor/*"],
+      "js": ["dist/js-editor-extension.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": [
-        "dist/*.js",
-        "dist/*.ttf"
-      ],
-      "matches": [
-        "*://scratch.mit.edu/*"
-      ]
+      "resources": ["dist/*.js", "dist/*.ttf"],
+      "matches": ["*://scratch.mit.edu/*"]
     }
   ]
 }
